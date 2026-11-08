@@ -7,46 +7,52 @@ CHE COSA SERVE
 - Permessi del proprio account Windows. Alcune finestre avviate come amministratore possono non essere controllabili da MonitorPilot non elevato.
 
 1. PREPARA I FILE
-1) Scarica o copia insieme nella stessa cartella questi due file:
+1) Scarica o copia insieme nella stessa cartella questi file:
    - monitorpilot.py
    - avvia_monitorpilot.bat
-2) Tieni anche LEGGIMI.txt a portata di mano. Non rinominare i file .py o .bat.
+   - monitorpilot.ico (icona Windows, finestra e tray)
+   - monitorpilot.png (immagine sorgente e fallback)
+2) Tieni anche LEGGIMI.txt a portata di mano. Non rinominare i file .py, .bat o icona.
 3) Per esempio crea la cartella Documenti\MonitorPilot e colloca lì i file.
 
 2. PRIMO AVVIO
 1) Fai doppio clic su avvia_monitorpilot.bat.
 2) Il launcher verifica prima Python 3.12 con `py -3.12`, poi cerca nel PATH un interprete Python 3.12 funzionante (ignorando lo stub di Microsoft Store). Se non ne trova uno, scarica Python 3.12.0 ufficiale e lo installa in silenzio per il tuo utente, aggiungendolo al PATH.
 3) Dopo l'installazione usa direttamente python.exe dalla cartella Python312 del tuo profilo, senza dipendere dal PATH aggiornato. Controlla PySide6, psutil e pywin32 e installa con pip soltanto le librerie mancanti (aggiorna pip prima).
-4) Il programma parte senza finestra della console. Il primo avvio, se deve installare Python o librerie, può richiedere alcuni minuti. In caso di errore il launcher mostra un messaggio e attende un tasto.
-5) La configurazione viene salvata automaticamente in %APPDATA%\MonitorPilot\config.json.
+4) Il launcher avvia MonitorPilot con pythonw.exe e senza finestra della console. Anche eseguendo direttamente `python monitorpilot.py` su Windows, un avvio non interattivo rilancia l'app con pythonw.exe; da terminale/IDE interattivo resta invece disponibile la console. Per disattivare il rilancio e fare debug, usa `python monitorpilot.py --console`.
+5) Il primo avvio, se deve installare Python o librerie, può richiedere alcuni minuti. In caso di errore il launcher mostra un messaggio e attende un tasto.
+6) La configurazione viene salvata automaticamente in %APPDATA%\MonitorPilot\config.json.
 
 3. CREA UNA REGOLA
 1) Apri la scheda Regole e premi Aggiungi.
 2) Inserisci il nome dell'eseguibile, per esempio chrome.exe. Il campo resta modificabile: puoi usare Sfoglia... per scegliere un file .exe (nel campo viene inserito solo il nome file) oppure Programmi aperti per selezionare un processo che ha una finestra visibile.
 3) Facoltativamente inserisci una parola o frase del titolo finestra: basta che il titolo la contenga.
-4) Seleziona monitor e modalità (massimizzata, schermo intero, centrata, dimensione personalizzata oppure mantieni dimensione).
+4) Seleziona monitor e modalità: Normale (mantiene la dimensione attuale), Massimizzata, Schermo intero (barra visibile), Schermo intero (F11 dell’app), Centrata oppure Dimensione personalizzata.
 5) Per dimensione personalizzata imposta X e Y relativi all'angolo in alto a sinistra del monitor selezionato, oltre a larghezza e altezza.
 6) Lascia selezionata Regola abilitata e premi Salva.
 7) Alla successiva comparsa di una finestra visibile che corrisponde, la regola viene applicata una sola volta. Dopo puoi spostarla manualmente. Una finestra già gestita non viene riposizionata ogni secondo.
+- Le vecchie regole salvate come “Schermo intero” vengono migrate a “Massimizzata”: in precedenza quella modalità spostava soltanto la finestra, senza rimuovere i bordi. La migrazione è conservativa e viene salvata insieme alla successiva modifica della configurazione.
+- “Schermo intero (barra visibile)” sposta la finestra sul monitor scelto e la massimizza nell’area di lavoro di Windows (work area): la barra delle applicazioni resta visibile e la finestra mantiene titolo e bordi normali. Rimuove inoltre un eventuale stato “sempre in primo piano” della finestra.
+- “Schermo intero (F11 dell’app)” sposta la finestra sul monitor e invia F11 una sola volta per HWND; salta il tasto se la finestra copre già il monitor.
 
 4. TRAY E AVVIO CON WINDOWS
-- Chiudendo la finestra con la X, MonitorPilot si nasconde nell'area di notifica vicino all'orologio e continua a funzionare.
-- Usa il doppio clic sull'icona oppure il menu contestuale dell'icona per riaprire MonitorPilot.
-- Per chiudere davvero scegli Esci dal menu dell'icona nella tray.
-- In Impostazioni seleziona Avvia MonitorPilot all'accesso a Windows e premi Salva impostazioni. Il programma crea una voce per l'utente corrente nel Registro (HKCU Run), avviandolo minimizzato.
-- Per avviarlo manualmente nascosto, esegui avvia_monitorpilot.bat --minimized.
+- Alla X puoi scegliere Chiudi il programma, Riduci nella tray o Annulla; seleziona Ricorda la mia scelta per memorizzare Chiudi/Riduci. Impostazioni consente di cambiare in seguito il comportamento (Chiedi sempre / Chiudi / Riduci nella tray).
+- Usa il doppio clic sull'icona o Mostra dal menu per riaprire MonitorPilot. Esci dal menu tray chiude davvero il programma.
+- In Impostazioni seleziona Avvia MonitorPilot all'accesso a Windows e premi Salva impostazioni. Il programma crea una voce per l'utente corrente nel Registro (HKCU Run): normalmente all'avvio la finestra è visibile; selezionando anche “Avvia minimizzato nella tray” verrà avviato nascosto solo tramite l'avvio automatico.
+- `--minimized` avvia nascosto soltanto se “Avvia minimizzato nella tray” è abilitata; la stessa opzione resta disattivata per impostazione predefinita e viene aggiunta alla voce di avvio automatico solo quando selezionata.
 
 5. SCHEDE PRINCIPALI
 - Monitor: elenco, identificazione temporanea con numero, monitor primario, modalità video e comandi di alimentazione. Il nome è ricavato prima dall'alias personale, poi dal nome modello nell'EDID e infine dal nome fornito da Windows. Rinomina o fai doppio clic su una riga per impostare un alias; Ripristina nome originale lo rimuove. Gli alias sono memorizzati in config.json usando l'identificativo hardware del monitor, non la posizione in elenco.
 - Finestre: aggiorna l'elenco (mostrando anche il nome del monitor), sposta una finestra o tutte quelle su un monitor; sono disponibili massimizza, minimizza, ripristina, chiudi e sempre in primo piano. Puoi creare una regola dalla finestra selezionata.
 - Profili: salva e ripristina le posizioni e le dimensioni delle finestre aperte, oltre al loro stato massimizzato; rinomina o elimina profili.
-- Impostazioni: abilita il motore regole globale e regola l'intervallo di controllo.
+- Impostazioni: motore regole globale, intervallo di controllo e comportamento alla chiusura.
 
 ATTENZIONI E LIMITI
 - Una modifica di risoluzione, frequenza o monitor primario può causare uno schermo temporaneamente nero o spostare finestre. Se Windows chiede conferma della modalità, confermala solo se l'immagine è visibile e corretta.
 - La disattivazione logica di un monitor tramite API Windows dipende dal driver e dalla configurazione; se il driver rifiuta l'operazione, aggiorna i driver o gestisci la topologia da Impostazioni schermo di Windows.
 - I profili ripristinano finestre abbinate prima per processo e titolo, poi per processo. Non avviano le applicazioni mancanti. Le modalità video salvate sono informative: il ripristino automatico della topologia/risoluzione dei monitor non è garantito perché Windows e i driver possono rifiutarlo.
 - Finestre senza titolo, invisibili, finestre tool, finestre cloaked e la finestra di MonitorPilot sono escluse. Operazioni sulle applicazioni elevate o protette possono essere negate.
+- Alcune app UWP (per esempio Xbox/ApplicationFrameHost) o Electron (per esempio Discord) possono correggere lo stato o la posizione della finestra; la modalità Schermo intero (barra visibile) usa la normale massimizzazione Windows nell’area di lavoro, non il fullscreen senza bordi.
 - Lo spegnimento display invia un comando Windows globale; può interessare più monitor o essere ignorato da alcuni dispositivi. Muovi il mouse o premi un tasto per riattivare lo schermo.
 
 RISOLUZIONE DEI PROBLEMI
@@ -60,11 +66,58 @@ RISOLUZIONE DEI PROBLEMI
 Il progetto usa API native di Windows e non è pensato per Linux o macOS.
 
 AGGIORNAMENTO — ICONA E LINGUA (IT/EN)
-- L'icona di MonitorPilot viene assegnata a Windows, alla finestra e all'area di notifica. Un file `monitorpilot.ico` presente accanto allo script ha la precedenza; se manca viene generato automaticamente quando PIL è disponibile, con alternativa disegnata tramite Qt.
+- L'icona di MonitorPilot viene assegnata a Windows, alla finestra e all'area di notifica. `monitorpilot.ico` accanto allo script ha la precedenza; se manca viene usato `monitorpilot.png`, poi l'alternativa disegnata tramite Qt.
 - In Impostazioni è disponibile il selettore Italiano/English. La lingua si applica subito ricostruendo l'interfaccia, viene salvata nel `config.json` alla chiave `language` e al primo avvio viene scelta in base alla lingua di Windows.
 - Per usare l'icona personalizzata, copia `monitorpilot.ico` nella stessa cartella di `monitorpilot.py`.
 
 UPDATE — ICON AND LANGUAGE (IT/EN)
-- MonitorPilot's icon is assigned to Windows, the application window, and the notification area. An existing `monitorpilot.ico` alongside the script takes precedence; if absent, an icon is generated automatically when PIL is available, with a Qt-drawn fallback.
+- MonitorPilot's icon is assigned to Windows, the application window, and the notification area. `monitorpilot.ico` alongside the script takes precedence; if absent, `monitorpilot.png` is used, followed by a Qt-drawn fallback.
 - The Settings tab includes an Italiano/English selector. Changes apply immediately by rebuilding the interface, persist in `config.json` under the `language` key, and default to the Windows language on first run.
+
+UPDATE — RULE DISPLAY MODES (IT/EN)
+- Rules offer Normal (keep current size), Maximized, Full screen (taskbar visible), App fullscreen (F11), Centered, and Custom size. Full screen moves the window to the selected monitor and maximizes it in the Windows work area; the taskbar remains visible and the normal title bar and window borders are retained. Any existing topmost state is removed. App fullscreen sends F11 once per HWND unless the window already covers its monitor.
+- Previously saved “Schermo intero” rules are migrated to “Massimizzata”, because the former implementation only positioned a regular framed window. This conservative migration is saved on the next configuration change.
+- Some UWP (e.g. Xbox/ApplicationFrameHost) and Electron (e.g. Discord) windows may override placement or window-state changes; behavior depends on the application.
 - To use a custom icon, place `monitorpilot.ico` in the same folder as `monitorpilot.py`.
+
+AGGIORNAMENTO — CHIUSURA E FULLSCREEN ROBUSTO
+- Alla chiusura con X scegli Chiudi il programma, Riduci nella tray o Annulla; “Ricorda la mia scelta” salva Chiudi/Riduci nella configurazione. Impostazioni permette di scegliere anche Chiedi sempre. Il menu della tray offre Mostra e Esci.
+- Schermo intero (barra visibile) sposta e massimizza la finestra nell’area di lavoro del monitor, lasciando visibile la barra delle applicazioni e mantenendo titolo e bordi normali; rimuove un eventuale TOPMOST. Schermo intero (F11 dell’app) resta una modalità separata e invia F11 una volta per finestra.
+- Il comportamento Win32 non è verificabile su Linux; verificare su Windows con le app e le versioni effettivamente usate.
+
+UPDATE — CLOSE BEHAVIOR AND ROBUST FULLSCREEN
+- The X close dialog offers Quit, Minimize to notification area, or Cancel, plus “Remember my choice”. Settings can switch between Always ask / Quit / Minimize to notification area. The tray menu offers Show and Exit.
+- Full screen (taskbar visible) moves and maximizes the window in the monitor work area, keeps the taskbar visible and the normal title bar/borders, and removes any existing TOPMOST state. App fullscreen (F11) remains a separate mode and sends F11 once per window.
+- Win32 behavior cannot be tested on Linux; validate on Windows with the actual applications in use.
+
+AGGIORNAMENTO — VISIBILITÀ ALL’AVVIO (IT/EN)
+- All’avvio normale la finestra principale viene mostrata e portata in primo piano. L’opzione “Avvia minimizzato nella tray” (disattivata per impostazione predefinita) vale soltanto per l’avvio automatico di Windows; l’opzione `--minimized` consente ancora un avvio manuale esplicitamente nascosto.
+
+UPDATE — STARTUP VISIBILITY (IT/EN)
+- On normal startup, the main window is shown and brought to the foreground. “Start minimized to the notification area” (off by default) applies only to Windows startup; the `--minimized` option still allows an explicitly hidden manual launch.
+
+
+AGGIORNAMENTO — ICONA WINDOWS E AVVIO SENZA CONSOLE
+- I file `monitorpilot.ico` (multi-risoluzione 16, 24, 32, 48, 64, 128 e 256 px) e `monitorpilot.png` sono inclusi. L’ICO viene usato per applicazione, finestra e tray; il PNG resta disponibile come alternativa. Se entrambi mancano o non sono leggibili, l’app disegna un’icona di riserva tramite Qt.
+- Su Windows viene impostato l’AppUserModelID prima di creare QApplication per associare l’icona corretta alla taskbar. I file icona devono restare accanto a `monitorpilot.py`.
+- `avvia_monitorpilot.bat` individua pythonw.exe e lo avvia senza console. Un avvio diretto non interattivo tramite python.exe prova a rilanciarsi con pythonw.exe; `--console` mantiene la console per il debug. Avvii da terminale/IDE interattivo non vengono distaccati.
+- Al primo avvio viene creato automaticamente `MonitorPilot.lnk` sul Desktop di Windows, con l’icona `monitorpilot.ico`. In Impostazioni puoi disattivare la creazione automatica oppure premere “Crea/ricrea collegamento ora”. Il percorso Desktop viene richiesto a Windows, quindi sono supportate anche le cartelle reindirizzate (per esempio OneDrive).
+- Il comportamento di console, taskbar e API Win32 va verificato su Windows; il controllo eseguito in questo ambiente Linux è soltanto statico/sintattico.
+
+UPDATE — WINDOWS ICON AND CONSOLE-FREE STARTUP
+- The included `monitorpilot.ico` (16, 24, 32, 48, 64, 128 and 256 px) and `monitorpilot.png` are used for the application, window and notification-area icon; Qt draws a fallback if neither file is readable. Keep the icon files beside `monitorpilot.py`.
+- On Windows the process AppUserModelID is set before QApplication creation so the taskbar can associate the MonitorPilot icon correctly.
+- `avvia_monitorpilot.bat` locates pythonw.exe and launches without a console. A direct, non-interactive run through python.exe attempts a guarded pythonw.exe relaunch; use `--console` for debugging. Launches from an interactive terminal/IDE remain attached.
+- On first launch, MonitorPilot automatically creates a `MonitorPilot.lnk` shortcut on the Windows Desktop using `monitorpilot.ico`. Settings lets you disable automatic creation or choose “Create/replace shortcut now”. The Desktop path is obtained from Windows, including redirected locations such as OneDrive.
+- Console, taskbar and Win32 behavior must be validated on Windows; this Linux environment permits syntax/static validation only.
+
+
+AGGIORNAMENTO — COLLEGAMENTO SUL DESKTOP
+- Per impostazione predefinita, al primo avvio MonitorPilot crea in background il collegamento `MonitorPilot` sul Desktop reale di Windows, usando `monitorpilot.ico` e avviando direttamente `monitorpilot.py` con `pythonw.exe` quando disponibile. Il collegamento viene aggiornato se punta a un’altra copia dello script.
+- La scheda Impostazioni include “Crea icona sul desktop” (attiva per impostazione predefinita) e “Crea/ricrea collegamento ora”. Disattivando la casella si impedisce la creazione automatica agli avvii successivi; il pulsante consente comunque la creazione manuale.
+- Il collegamento viene creato senza finestre di console e l’operazione non blocca l’avvio. La funzione non esegue operazioni su Linux o macOS.
+
+UPDATE — DESKTOP SHORTCUT
+- By default, MonitorPilot creates a `MonitorPilot` shortcut in the background on the actual Windows Desktop at startup, using `monitorpilot.ico` and launching `monitorpilot.py` with `pythonw.exe` when available. The shortcut is refreshed if it points to a different copy of the script.
+- Settings includes “Create desktop shortcut” (enabled by default) and “Create/replace shortcut now”. Unchecking the option disables automatic creation on later launches; the button remains available for manual creation.
+- Shortcut creation is performed without a visible console and does not block startup. The function does nothing on Linux or macOS.

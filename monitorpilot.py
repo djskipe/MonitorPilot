@@ -1,13 +1,56 @@
 # -*- coding: utf-8 -*-
 """MonitorPilot - gestione monitor, finestre e profili per Windows."""
-import sys
 import os
+_qt_logging_rules = os.environ.get("QT_LOGGING_RULES", "")
+_qt_window_rule = "qt.qpa.window=false"
+os.environ["QT_LOGGING_RULES"] = (
+    f"{_qt_logging_rules};{_qt_window_rule}" if _qt_logging_rules else _qt_window_rule
+)
+
+import sys
 import json
 import time
 import ctypes
 import traceback
 import argparse
+import subprocess
 from pathlib import Path
+
+
+def _maybe_relaunch_without_console():
+    """Use pythonw for unattended Windows launches, but preserve interactive debugging."""
+    if os.name != 'nt' or os.environ.get('MONITORPILOT_NO_CONSOLE_RELAUNCH'):
+        return
+    if '--console' in sys.argv[1:]:
+        return
+    if Path(sys.executable).name.lower() != 'python.exe':
+        return
+    # A tty or active debugger means the user is working interactively; do not detach.
+    try:
+        if sys.gettrace() or any(stream and stream.isatty() for stream in
+                                 (sys.stdin, sys.stdout, sys.stderr)):
+            return
+    except Exception:
+        pass
+    pythonw = Path(sys.executable).with_name('pythonw.exe')
+    if not pythonw.is_file():
+        return
+    env = os.environ.copy()
+    env['MONITORPILOT_NO_CONSOLE_RELAUNCH'] = '1'
+    flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    try:
+        subprocess.Popen([str(pythonw), str(Path(__file__).resolve()), *sys.argv[1:]],
+                         cwd=str(Path(__file__).resolve().parent), env=env,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, creationflags=flags,
+                         close_fds=True)
+        raise SystemExit(0)
+    except OSError:
+        # Leave the current process running if pythonw could not be started.
+        return
+
+
+_maybe_relaunch_without_console()
 
 # DPI per-monitor: va impostato prima della creazione di QApplication.
 def imposta_dpi_awareness():
@@ -31,6 +74,49 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
     QLineEdit, QComboBox, QCheckBox, QSpinBox, QFormLayout, QMessageBox,
     QSystemTrayIcon, QMenu, QFileDialog, QInputDialog, QGroupBox,
     QStatusBar)
+
+_APP_ICON = None
+
+def monitorpilot_icon():
+    """Load the adjacent custom icon, with the Qt-drawn icon as fallback."""
+    global _APP_ICON
+    if _APP_ICON is not None:
+        return _APP_ICON
+    base = Path(__file__).resolve().parent
+    for filename in ('monitorpilot.ico', 'monitorpilot.png'):
+        candidate = base / filename
+        if candidate.is_file():
+            loaded = QIcon(str(candidate))
+            if not loaded.isNull():
+                _APP_ICON = loaded
+                return _APP_ICON
+    pix = QPixmap(64, 64)
+    pix.fill(Qt.transparent)
+    painter = QPainter(pix)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setBrush(QColor('#0c171a'))
+    painter.setPen(Qt.NoPen)
+    painter.drawRoundedRect(1, 1, 62, 62, 11, 11)
+    painter.setBrush(QColor('#54e3b5'))
+    painter.drawRoundedRect(8, 8, 48, 38, 5, 5)
+    painter.setBrush(QColor('#0c171a'))
+    painter.drawRoundedRect(13, 13, 38, 28, 2, 2)
+    painter.setPen(QColor('#54e3b5'))
+    painter.drawLine(32, 41, 32, 51)
+    painter.drawLine(22, 52, 42, 52)
+    painter.drawArc(18, 17, 28, 28, 15 * 16, 125 * 16)
+    painter.drawLine(36, 29, 45, 21)
+    painter.end()
+    _APP_ICON = QIcon(pix)
+    return _APP_ICON
+
+
+def set_windows_app_user_model_id():
+    if os.name == 'nt':
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('MonitorPilot.App')
+        except Exception:
+            pass
 
 try:
     import psutil
@@ -144,6 +230,17 @@ STRINGS = {
         'Minimizza': 'Minimizza',
         'Ripristina': 'Ripristina',
         'Chiudi': 'Chiudi',
+        'Schermo intero (F11 dell’app)': 'Schermo intero (F11 dell’app)',
+        'Chiudi il programma': 'Chiudi il programma',
+        'Riduci nella tray': 'Riduci nella tray',
+        'Annulla': 'Annulla',
+        'Ricorda la mia scelta': 'Ricorda la mia scelta',
+        'Scegli cosa fare alla chiusura': 'Scegli cosa fare alla chiusura',
+        'Comportamento alla chiusura': 'Comportamento alla chiusura',
+        'Chiedi sempre': 'Chiedi sempre',
+        'Scelta chiusura: Chiudi': 'Chiudi',
+        'Scelta chiusura: Chiedi sempre': 'Chiedi sempre',
+        'Mostra': 'Mostra',
         'Sempre in primo piano': 'Sempre in primo piano',
         'Crea regola da finestra': 'Crea regola da finestra',
         'Spostamento in blocco': 'Spostamento in blocco',
@@ -278,6 +375,17 @@ STRINGS = {
         'Minimizza': 'Minimize',
         'Ripristina': 'Restore',
         'Chiudi': 'Close',
+        'Schermo intero (F11 dell’app)': 'Fullscreen (app F11)',
+        'Chiudi il programma': 'Quit the program',
+        'Riduci nella tray': 'Minimize to notification area',
+        'Annulla': 'Cancel',
+        'Ricorda la mia scelta': 'Remember my choice',
+        'Scegli cosa fare alla chiusura': 'Choose what to do when closing',
+        'Comportamento alla chiusura': 'On close',
+        'Chiedi sempre': 'Always ask',
+        'Scelta chiusura: Chiudi': 'Quit',
+        'Scelta chiusura: Chiedi sempre': 'Always ask',
+        'Mostra': 'Show',
         'Sempre in primo piano': 'Always on top',
         'Crea regola da finestra': 'Create rule from window',
         'Spostamento in blocco': 'Bulk move',
@@ -326,8 +434,12 @@ STRINGS = {
 
 _EXTRA_STRINGS = {
     'it': {
+        'Normale': 'Normale',
         'Massimizzata': 'Massimizzata',
         'Schermo intero': 'Schermo intero',
+        'Schermo intero reale': 'Schermo intero (barra visibile)',
+        'Schermo intero (F11 dell’app)': 'Schermo intero (F11 dell’app)',
+        'Schermo intero (F11 dell’app)': 'Schermo intero (F11 dell’app)',
         'Centrata': 'Centrata',
         'Dimensione personalizzata': 'Dimensione personalizzata',
         'Mantieni dimensione': 'Mantieni dimensione',
@@ -359,8 +471,12 @@ _EXTRA_STRINGS = {
         '{count} finestre · {index}': '{count} finestre · {index}',
     },
     'en': {
+        'Normale': 'Normal',
         'Massimizzata': 'Maximized',
         'Schermo intero': 'Fullscreen',
+        'Schermo intero reale': 'Full screen (taskbar visible)',
+        'Schermo intero (F11 dell’app)': 'Fullscreen (app F11)',
+        'Schermo intero (F11 dell’app)': 'Fullscreen (app F11)',
         'Centrata': 'Centered',
         'Dimensione personalizzata': 'Custom size',
         'Mantieni dimensione': 'Keep size',
@@ -399,8 +515,10 @@ for _lang in ('it', 'en'):
 _EXTRA_REPAIRS = {
     'it': {
         'Non attivo': 'Non attivo',
+        'Normale': 'Normale',
         'Massimizzata': 'Massimizzata',
         'Schermo intero': 'Schermo intero',
+        'Schermo intero reale': 'Schermo intero (barra visibile)',
         'Centrata': 'Centrata',
         'Dimensione personalizzata': 'Dimensione personalizzata',
         'Mantieni dimensione': 'Mantieni dimensione',
@@ -430,8 +548,10 @@ _EXTRA_REPAIRS = {
     },
     'en': {
         'Non attivo': 'Inactive',
+        'Normale': 'Normal',
         'Massimizzata': 'Maximized',
         'Schermo intero': 'Fullscreen',
+        'Schermo intero reale': 'Full screen (taskbar visible)',
         'Centrata': 'Centered',
         'Dimensione personalizzata': 'Custom size',
         'Mantieni dimensione': 'Keep size',
@@ -470,7 +590,7 @@ def t(key, **fmt):
     except Exception: return value
 
 def mode_value(label):
-    return next((m for m in MODES if t(m) == label), label)
+    return normalizza_modalita(next((m for m in MODES if t(m) == label), label))
 
 def windows_default_language():
     try:
@@ -482,13 +602,36 @@ def windows_default_language():
 APP_DIR = Path(os.environ.get('APPDATA', str(Path.home()))) / APP_NAME
 CONFIG_PATH = APP_DIR / 'config.json'
 RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
-MODES = ['Massimizzata', 'Schermo intero', 'Centrata', 'Dimensione personalizzata', 'Mantieni dimensione']
+MODES = ['Normale', 'Massimizzata', 'Schermo intero reale', 'Schermo intero (F11 dell’app)', 'Centrata', 'Dimensione personalizzata']
+
+def normalizza_modalita(mode):
+    """Canonicalizza le etichette persistite; la vecchia modalità ambigua resta massimizzata."""
+    raw = str(mode or '').strip()
+    folded = raw.casefold()
+    if folded in ('schermo intero', 'fullscreen', 'maximize', 'maximized', 'massimizzata'):
+        return 'Massimizzata'
+    if folded in ('fullscreen (app f11)', 'fullscreen (f11 dell’app)', 'schermo intero (f11 dell’app)', 'schermo intero f11'):
+        return 'Schermo intero (F11 dell’app)'
+    if folded in ('mantieni dimensione', 'keep size'):
+        return 'Normale'
+    aliases = {
+        'normal': 'Normale', 'centered': 'Centrata',
+        'custom size': 'Dimensione personalizzata',
+    }
+    if folded in aliases:
+        return aliases[folded]
+    if raw in MODES:
+        return raw
+    for candidate in MODES:
+        if raw == t(candidate):
+            return candidate
+    return raw
 
 _MONITOR_ALIASES = {}
 
 DEFAULT_CONFIG = {
     'rules': [], 'profiles': [], 'monitor_aliases': {}, 'settings': {
-        'start_minimized': False, 'rule_interval': 1000, 'rules_enabled': True
+        'start_minimized': False, 'rule_interval': 1000, 'rules_enabled': True, 'close_behavior': 'ask'
     }
 }
 
@@ -514,6 +657,11 @@ def carica_config():
     out.update(data)
     out['language'] = out.get('language') if out.get('language') in ('it', 'en') else windows_default_language()
     out['rules'] = out.get('rules') if isinstance(out.get('rules'), list) else []
+    # Migrazione conservativa: il vecchio 'Schermo intero' era solo SetWindowPos,
+    # non borderless vero; conserva il comportamento atteso come finestra massimizzata.
+    for rule in out['rules']:
+        if isinstance(rule, dict) and 'mode' in rule:
+            rule['mode'] = normalizza_modalita(rule['mode'])
     out['monitor_aliases'] = out.get('monitor_aliases') if isinstance(out.get('monitor_aliases'), dict) else {}
     global _MONITOR_ALIASES
     _MONITOR_ALIASES = out['monitor_aliases']
@@ -521,6 +669,8 @@ def carica_config():
     settings = dict(DEFAULT_CONFIG['settings'])
     if isinstance(out.get('settings'), dict):
         settings.update(out['settings'])
+    if settings.get('close_behavior') not in ('ask', 'quit', 'tray'):
+        settings['close_behavior'] = 'ask'
     out['settings'] = settings
     return out
 
@@ -727,6 +877,8 @@ def monitors_info():
                 pass
             result.append({'device': dev, 'device_id': device_id, 'stable_key': stable_key,
                 'windows_name': windows_name, 'edid_name': edid_name, 'alias': alias, 'name': nome, 'x': l, 'y': t, 'width': r-l, 'height': b-t,
+                'work_x': mi.rcWork.left, 'work_y': mi.rcWork.top,
+                'work_width': mi.rcWork.right-mi.rcWork.left, 'work_height': mi.rcWork.bottom-mi.rcWork.top,
                 'frequency': freq, 'dpi': dpi, 'primary': bool(mi.dwFlags & 1), 'active': True})
         except Exception:
             pass
@@ -832,19 +984,155 @@ def programmi_aperti():
     return sorted(names, key=str.casefold)
 
 
-def sposta_hwnd(hwnd, monitor, mode='Mantieni dimensione', custom=None):
+# Snapshot for restoring any styles modified by legacy fullscreen paths.
+_FULLSCREEN_STYLES = {}
+_F11_SENT_HWND = set()
+
+
+def _ripristina_stile_finestra(hwnd):
+    saved = _FULLSCREEN_STYLES.pop(int(hwnd), None)
+    if not saved:
+        return
+    try:
+        win32gui.SetWindowLong(hwnd, win32con.GWL_STYLE, saved['style'])
+        win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, saved['exstyle'])
+        insert_after = win32con.HWND_TOPMOST if saved['topmost'] else win32con.HWND_NOTOPMOST
+        win32gui.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0,
+            win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE | win32con.SWP_FRAMECHANGED)
+    except Exception:
+        pass
+
+
+def _foreground(hwnd):
+    """Try to activate a target even when Windows applies foreground-lock rules."""
+    if os.name != 'nt':
+        return
+    u32 = ctypes.windll.user32
+    k32 = ctypes.windll.kernel32
+    from ctypes import wintypes
+    u32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    u32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    u32.GetForegroundWindow.argtypes = []
+    u32.GetForegroundWindow.restype = wintypes.HWND
+    u32.AttachThreadInput.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.BOOL]
+    u32.AttachThreadInput.restype = wintypes.BOOL
+    u32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    u32.SetForegroundWindow.restype = wintypes.BOOL
+    u32.BringWindowToTop.argtypes = [wintypes.HWND]
+    u32.BringWindowToTop.restype = wintypes.BOOL
+    u32.AllowSetForegroundWindow.argtypes = [wintypes.DWORD]
+    u32.AllowSetForegroundWindow.restype = wintypes.BOOL
+    k32.GetCurrentThreadId.restype = wintypes.DWORD
+    current_tid = int(k32.GetCurrentThreadId())
+    attached = []
+    try:
+        target_tid = int(u32.GetWindowThreadProcessId(hwnd, None))
+        foreground = u32.GetForegroundWindow()
+        foreground_tid = int(u32.GetWindowThreadProcessId(foreground, None)) if foreground else 0
+        current_tid = int(k32.GetCurrentThreadId())
+        for other_tid in {target_tid, foreground_tid} - {0, current_tid}:
+            if u32.AttachThreadInput(current_tid, other_tid, True):
+                attached.append(other_tid)
+        u32.AllowSetForegroundWindow(-1)
+        u32.SetForegroundWindow(hwnd)
+        u32.BringWindowToTop(hwnd)
+        try:
+            win32gui.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
+    except Exception:
+        try:
+            u32.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
+    finally:
+        for other_tid in reversed(attached):
+            try:
+                u32.AttachThreadInput(current_tid, other_tid, False)
+            except Exception:
+                pass
+
+
+def _applica_schermo_intero_reale(hwnd, m):
+    """Massimizza sul monitor scelto nell'area di lavoro, lasciando visibile la taskbar."""
+    try:
+        # Elimina anche un eventuale stato/stile fullscreen precedente.
+        _ripristina_stile_finestra(hwnd)
+        try:
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        except Exception:
+            pass
+        x = int(m.get('work_x', m['x']))
+        y = int(m.get('work_y', m['y']))
+        width = int(m.get('work_width', m['width']))
+        height = int(m.get('work_height', m['height']))
+        # Sposta la finestra nell'area di lavoro del monitor scelto e rimuove
+        # esplicitamente TOPMOST prima di richiedere la normale massimizzazione.
+        win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, x, y, width, height,
+            win32con.SWP_SHOWWINDOW | getattr(win32con, 'SWP_FRAMECHANGED', 0x0020))
+        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        return True
+    except Exception:
+        return False
+
+
+def _invia_f11_once(hwnd):
+    """Send app-level F11 once per HWND, after its placement; skip true monitor coverage."""
+    key = int(hwnd)
+    if key in _F11_SENT_HWND:
+        return True
+    try:
+        if not win32gui.IsWindow(hwnd):
+            return False
+        mons = monitors_info()
+        rect = rect_finestra(hwnd)
+        idx = monitor_per_rect(rect, mons)
+        if mons and _rettangolo_copre_monitor(hwnd, mons[idx]):
+            _F11_SENT_HWND.add(key)
+            return True
+        _F11_SENT_HWND.add(key)
+        def send():
+            try:
+                if not win32gui.IsWindow(hwnd):
+                    return
+                _foreground(hwnd)
+                u32 = ctypes.windll.user32
+                u32.keybd_event(0x7A, 0, 0, 0)  # VK_F11 down
+                u32.keybd_event(0x7A, 0, 0x0002, 0)  # KEYEVENTF_KEYUP
+            except Exception:
+                pass
+        QTimer.singleShot(150, send)
+        return True
+    except Exception:
+        return False
+
+def sposta_hwnd(hwnd, monitor, mode='Normale', custom=None):
     mons = monitors_info()
     if not mons: return False
     monitor = max(0, min(int(monitor), len(mons)-1)); m = mons[monitor]
+    mode = normalizza_modalita(mode)
     try:
+        if mode == 'Schermo intero reale':
+            return _applica_schermo_intero_reale(hwnd, m)
+        if mode == 'Schermo intero (F11 dell’app)':
+            _ripristina_stile_finestra(hwnd)
+            try:
+                if win32gui.GetWindowPlacement(hwnd)[1] == win32con.SW_MAXIMIZE:
+                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            except Exception: pass
+            try:
+                _x, _y, width, height = rect_finestra(hwnd)
+                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, int(m['x']), int(m['y']),
+                    max(100, int(width)), max(80, int(height)), win32con.SWP_SHOWWINDOW)
+            except Exception:
+                return False
+            return _invia_f11_once(hwnd)
+        _ripristina_stile_finestra(hwnd)
         try: win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         except Exception: pass
         if mode == 'Massimizzata':
             win32gui.SetWindowPos(hwnd, 0, m['x'], m['y'], m['width'], m['height'], win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE)
             win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-            return True
-        if mode == 'Schermo intero':
-            win32gui.SetWindowPos(hwnd, win32con.HWND_TOP, m['x'], m['y'], m['width'], m['height'], win32con.SWP_NOACTIVATE)
             return True
         if mode == 'Centrata':
             _, _, w, h = rect_finestra(hwnd); w = min(w, m['width']); h = min(h, m['height'])
@@ -852,7 +1140,7 @@ def sposta_hwnd(hwnd, monitor, mode='Mantieni dimensione', custom=None):
         elif mode == 'Dimensione personalizzata' and custom:
             rx, ry, w, h = [int(v) for v in custom]
             x, y = m['x']+rx, m['y']+ry
-        else:
+        else:  # Normale: conserva larghezza/altezza correnti e trasferisce la finestra.
             _, _, w, h = rect_finestra(hwnd)
             x, y = m['x'], m['y']
         win32gui.SetWindowPos(hwnd, 0, int(x), int(y), max(100, int(w)), max(80, int(h)), win32con.SWP_NOZORDER | win32con.SWP_NOACTIVATE)
@@ -908,7 +1196,7 @@ class Overlay(QLabel):
 
 class RuleDialog(QDialog):
     def __init__(self, monitors, rule=None, parent=None):
-        super().__init__(parent); self.setWindowTitle(t('Regola finestra')); self.setMinimumWidth(650)
+        super().__init__(parent); self.setWindowIcon(monitorpilot_icon()); self.setWindowTitle(t('Regola finestra')); self.setMinimumWidth(650)
         form = QFormLayout(self)
         self.process = QLineEdit(); self.process.setPlaceholderText(t('es. chrome.exe'))
         process_row = QWidget(); process_lay = QHBoxLayout(process_row); process_lay.setContentsMargins(0, 0, 0, 0)
@@ -963,7 +1251,7 @@ class RuleDialog(QDialog):
 
 class ModeDialog(QDialog):
     def __init__(self, monitors, parent=None):
-        super().__init__(parent); self.setWindowTitle(t('Sposta finestra')); form=QFormLayout(self)
+        super().__init__(parent); self.setWindowIcon(monitorpilot_icon()); self.setWindowTitle(t('Sposta finestra')); form=QFormLayout(self)
         self.monitor=QComboBox()
         for i,m in enumerate(monitors): self.monitor.addItem(f'{i+1} · {m["name"]}',i)
         self.mode=QComboBox(); self.mode.addItems([t(m) for m in MODES])
@@ -977,6 +1265,7 @@ class ModeDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self, config, start_hidden=False):
         super().__init__(); self.config=config; self.managed=set(); self.overlays=[]; self.closing_to_tray=False
+        self.setWindowIcon(monitorpilot_icon())
         self.setWindowTitle(t('MonitorPilot · Desktop Control')); self.resize(1120,720); self.setMinimumSize(850,560)
         self.setStyleSheet(STYLE)
         root=QWidget(); v=QVBoxLayout(root); v.setContentsMargins(20,16,20,12); v.setSpacing(12)
@@ -1275,6 +1564,10 @@ class MainWindow(QMainWindow):
         self.language.setCurrentIndex(max(0, self.language.findData(self.config.get('language', 'en'))))
         self.language.currentIndexChanged.connect(self.change_language)
         form.addRow(t('Lingua / Language'), self.language)
+        self.close_behavior=QComboBox()
+        for label, value in ((t('Scelta chiusura: Chiedi sempre'),'ask'),(t('Scelta chiusura: Chiudi'),'quit'),(t('Riduci nella tray'),'tray')):
+            self.close_behavior.addItem(label, value)
+        form.addRow(t('Comportamento alla chiusura'),self.close_behavior)
         self.run_start=QCheckBox(t('Avvia MonitorPilot all’accesso a Windows'));self.start_tray=QCheckBox(t('Avvia minimizzato nella tray'));self.rules_global=QCheckBox(t('Abilita motore regole globale'))
         self.interval=QSpinBox();self.interval.setRange(250,60000);self.interval.setSuffix(t(' ms'))
         form.addRow(self.run_start);form.addRow(self.start_tray);form.addRow(t('Controllo regole ogni'),self.interval);form.addRow(self.rules_global);l.addWidget(group)
@@ -1308,7 +1601,7 @@ class MainWindow(QMainWindow):
         old.deleteLater()
 
     def load_settings_ui(self):
-        s=self.config['settings'];self.start_tray.setChecked(bool(s.get('start_minimized')));self.interval.setValue(int(s.get('rule_interval',1000)));self.rules_global.setChecked(bool(s.get('rules_enabled',True)))
+        s=self.config['settings'];self.start_tray.setChecked(bool(s.get('start_minimized')));self.interval.setValue(int(s.get('rule_interval',1000)));self.rules_global.setChecked(bool(s.get('rules_enabled',True)));self.close_behavior.setCurrentIndex(max(0,self.close_behavior.findData(s.get('close_behavior','ask'))))
         self.run_start.setChecked(self.autostart_enabled())
     def autostart_enabled(self):
         if os.name!='nt':return False
@@ -1318,7 +1611,7 @@ class MainWindow(QMainWindow):
             return True
         except Exception:return False
     def save_settings(self):
-        self.config['settings'].update({'start_minimized':self.start_tray.isChecked(),'rule_interval':self.interval.value(),'rules_enabled':self.rules_global.isChecked()})
+        self.config['settings'].update({'start_minimized':self.start_tray.isChecked(),'rule_interval':self.interval.value(),'rules_enabled':self.rules_global.isChecked(),'close_behavior':self.close_behavior.currentData() or 'ask'})
         self.timer.setInterval(self.interval.value());self.set_rules_ui_state()
         try:
             import winreg
@@ -1326,7 +1619,9 @@ class MainWindow(QMainWindow):
                 if self.run_start.isChecked():
                     pyw=Path(sys.executable).with_name('pythonw.exe')
                     if not pyw.exists():pyw=Path(sys.executable)
-                    cmd=f'"{pyw}" "{Path(__file__).resolve()}" --minimized'
+                    cmd=f'"{pyw}" "{Path(__file__).resolve()}"'
+                    if self.start_tray.isChecked():
+                        cmd += ' --minimized'
                     winreg.SetValueEx(k,APP_NAME,0,winreg.REG_SZ,cmd)
                 else:
                     try:winreg.DeleteValue(k,APP_NAME)
@@ -1350,6 +1645,9 @@ class MainWindow(QMainWindow):
                     if int(hwnd) not in self.managed and int(win32process.GetWindowThreadProcessId(hwnd)[1])!=os.getpid():candidates.append(hwnd)
                 return True
             win32gui.EnumWindows(cb,None); self.managed.intersection_update(live)
+            for stale_hwnd in set(_FULLSCREEN_STYLES) - live:
+                _FULLSCREEN_STYLES.pop(stale_hwnd, None)
+            _F11_SENT_HWND.intersection_update({h for h in _F11_SENT_HWND if win32gui.IsWindow(h)})
             for hwnd in candidates:
                 proc=process_name(hwnd);title=win32gui.GetWindowText(hwnd)
                 for rule in self.config['rules']:
@@ -1362,36 +1660,12 @@ class MainWindow(QMainWindow):
             pass
 
     def make_tray(self):
-        icon = QIcon()
+        icon = monitorpilot_icon()
         try:
-            ico_path = Path(__file__).resolve().with_name('monitorpilot.ico')
-            if not ico_path.exists():
-                try:
-                    from PIL import Image, ImageDraw
-                    im = Image.new('RGBA', (64, 64), (12, 23, 26, 255))
-                    draw = ImageDraw.Draw(im)
-                    draw.rounded_rectangle((5, 5, 59, 48), radius=6, fill=(84, 227, 181, 255))
-                    draw.rectangle((29, 48, 35, 56), fill=(84, 227, 181, 255))
-                    draw.rounded_rectangle((19, 56, 45, 60), radius=2, fill=(84, 227, 181, 255))
-                    im.save(ico_path, format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64)])
-                except Exception:
-                    pass
-            if ico_path.exists(): icon = QIcon(str(ico_path))
-        except Exception:
-            pass
-        if icon.isNull():
-            pix = QPixmap(64, 64); pix.fill(Qt.transparent)
-            painter = QPainter(pix); painter.setRenderHint(QPainter.Antialiasing)
-            painter.setBrush(QColor('#54e3b5')); painter.setPen(Qt.NoPen)
-            painter.drawRoundedRect(5, 5, 54, 44, 7, 7)
-            painter.setBrush(QColor('#54e3b5')); painter.drawRect(29, 49, 6, 8)
-            painter.drawRoundedRect(19, 57, 26, 4, 2, 2); painter.end()
-            icon = QIcon(pix)
-        try: self.setWindowIcon(icon)
-        except Exception: pass
-        try:
+            self.setWindowIcon(icon)
             self.tray = QSystemTrayIcon(icon, self)
-            menu = QMenu(); show = QAction(t('Apri MonitorPilot'), self)
+            self.tray.setToolTip(APP_NAME)
+            menu = QMenu(self); show = QAction(t('Mostra'), self)
             show.triggered.connect(self.show_normal)
             quit_action = QAction(t('Esci'), self); quit_action.triggered.connect(self.quit_app)
             menu.addAction(show); menu.addSeparator(); menu.addAction(quit_action)
@@ -1402,9 +1676,50 @@ class MainWindow(QMainWindow):
             self.tray = QSystemTrayIcon(icon, self)
     def show_normal(self):self.show();self.setWindowState((self.windowState() & ~Qt.WindowMinimized)|Qt.WindowActive);self.raise_();self.activateWindow()
     def closeEvent(self,event):
-        if not self.closing_to_tray and self.tray.isVisible():event.ignore();self.hide();self.tray.showMessage(t('MonitorPilot'),t('L’applicazione continua nell’area di notifica.'),QSystemTrayIcon.Information,2500)
-        else:event.accept()
-    def quit_app(self):self.closing_to_tray=True;self.tray.hide();QApplication.quit()
+        if self.closing_to_tray:
+            event.accept()
+            return
+        behavior = self.config['settings'].get('close_behavior','ask')
+        remember = False
+        if behavior == 'ask':
+            box = QMessageBox(self)
+            box.setWindowTitle(t('MonitorPilot'))
+            box.setText(t('Scegli cosa fare alla chiusura'))
+            quit_button = box.addButton(t('Chiudi il programma'), QMessageBox.AcceptRole)
+            tray_button = box.addButton(t('Riduci nella tray'), QMessageBox.ActionRole)
+            cancel_button = box.addButton(t('Annulla'), QMessageBox.RejectRole)
+            remember_box = QCheckBox(t('Ricorda la mia scelta'), box)
+            box.setCheckBox(remember_box)
+            box.exec()
+            clicked = box.clickedButton()
+            remember = remember_box.isChecked()
+            if clicked is cancel_button or clicked not in (quit_button, tray_button):
+                event.ignore()
+                return
+            behavior = 'quit' if clicked is quit_button else 'tray'
+            if remember:
+                self.config['settings']['close_behavior'] = behavior
+                try: self.save()
+                except Exception: pass
+                if hasattr(self, 'close_behavior'):
+                    idx = self.close_behavior.findData(behavior)
+                    if idx >= 0: self.close_behavior.setCurrentIndex(idx)
+        if behavior == 'tray':
+            event.ignore()
+            self.hide()
+            if self.tray.isVisible():
+                self.tray.showMessage(t('MonitorPilot'),t('L’applicazione continua nell’area di notifica.'),QSystemTrayIcon.Information,2500)
+            return
+        self.closing_to_tray = True
+        try: self.tray.hide()
+        except Exception: pass
+        event.accept()
+        QApplication.quit()
+    def quit_app(self):
+        self.closing_to_tray=True
+        try: self.tray.hide()
+        except Exception: pass
+        QApplication.quit()
 
 # -------------------------- Avvio / istanza singola -------------------------
 def acquisisci_mutex():
@@ -1421,28 +1736,28 @@ def acquisisci_mutex():
 def main():
     parser=argparse.ArgumentParser(description='MonitorPilot - gestione desktop Windows')
     parser.add_argument('--minimized',action='store_true',help='Avvia nascosto nell’area di notifica')
+    parser.add_argument('--console', action='store_true', help='Disattiva il rilancio senza console (debug)')
     args,_=parser.parse_known_args()
+    set_windows_app_user_model_id()
     mutex=acquisisci_mutex()
     if mutex is False:
         try:
-            app=QApplication(sys.argv);QSystemTrayIcon.showMessage(QSystemTrayIcon(),'MonitorPilot',t('È già in esecuzione.'))
+            app=QApplication(sys.argv); app.setApplicationName(APP_NAME); app.setWindowIcon(monitorpilot_icon()); QSystemTrayIcon.showMessage(QSystemTrayIcon(),'MonitorPilot',t('È già in esecuzione.'))
         except Exception:pass
         return 0
     config=carica_config()
     global CURRENT_LANGUAGE
     CURRENT_LANGUAGE=config['language']
     try:
-        if os.name == 'nt':
-            try: ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('MonitorPilot.App')
-            except Exception: pass
         app=QApplication(sys.argv);app.setApplicationName(APP_NAME);app.setQuitOnLastWindowClosed(False)
-        try:
-            _app_icon_path = Path(__file__).resolve().with_name('monitorpilot.ico')
-            if _app_icon_path.exists(): app.setWindowIcon(QIcon(str(_app_icon_path)))
-        except Exception: pass
+        app.setWindowIcon(monitorpilot_icon())
         app.setStyle('Fusion')
-        hidden=args.minimized or bool(config['settings'].get('start_minimized',False))
-        window=MainWindow(config,hidden);window.show() if not hidden else None
+        # --minimized è un segnale usato dal comando di autostart; nascondi la
+        # finestra solo se l'utente ha abilitato la preferenza. Questo protegge
+        # anche le vecchie voci HKCU Run che passavano il flag senza distinzione.
+        hidden=args.minimized and bool(config['settings'].get('start_minimized', False))
+        window=MainWindow(config,hidden)
+        if not hidden: window.show_normal()
         app._monitorpilot_window=window
         # Mantiene vivo l'handle mutex per tutto il ciclo di vita.
         app._monitorpilot_mutex=mutex
