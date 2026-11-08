@@ -87,5 +87,6 @@ MonitorPilot/
 ├── monitorpilot.py          # programma principale / main program
 ├── avvia_monitorpilot.bat   # installazione e avvio / setup and launcher
 ├── LEGGIMI.txt              # guida / guide
+├── requirements.txt         # Python essential library
 └── monitorpilot.ico         # (opzionale / optional) icona personalizzata
 ```
