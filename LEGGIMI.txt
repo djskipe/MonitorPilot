@@ -1,0 +1,70 @@
+MONITORPILOT — GUIDA RAPIDA (Windows 10/11)
+============================================
+
+CHE COSA SERVE
+- Windows 10 o Windows 11 a 64 bit.
+- Una connessione Internet al primo avvio se Python o le librerie richieste non sono già presenti.
+- Permessi del proprio account Windows. Alcune finestre avviate come amministratore possono non essere controllabili da MonitorPilot non elevato.
+
+1. PREPARA I FILE
+1) Scarica o copia insieme nella stessa cartella questi due file:
+   - monitorpilot.py
+   - avvia_monitorpilot.bat
+2) Tieni anche LEGGIMI.txt a portata di mano. Non rinominare i file .py o .bat.
+3) Per esempio crea la cartella Documenti\MonitorPilot e colloca lì i file.
+
+2. PRIMO AVVIO
+1) Fai doppio clic su avvia_monitorpilot.bat.
+2) Il launcher verifica prima Python 3.12 con `py -3.12`, poi cerca nel PATH un interprete Python 3.12 funzionante (ignorando lo stub di Microsoft Store). Se non ne trova uno, scarica Python 3.12.0 ufficiale e lo installa in silenzio per il tuo utente, aggiungendolo al PATH.
+3) Dopo l'installazione usa direttamente python.exe dalla cartella Python312 del tuo profilo, senza dipendere dal PATH aggiornato. Controlla PySide6, psutil e pywin32 e installa con pip soltanto le librerie mancanti (aggiorna pip prima).
+4) Il programma parte senza finestra della console. Il primo avvio, se deve installare Python o librerie, può richiedere alcuni minuti. In caso di errore il launcher mostra un messaggio e attende un tasto.
+5) La configurazione viene salvata automaticamente in %APPDATA%\MonitorPilot\config.json.
+
+3. CREA UNA REGOLA
+1) Apri la scheda Regole e premi Aggiungi.
+2) Inserisci il nome dell'eseguibile, per esempio chrome.exe. Il campo resta modificabile: puoi usare Sfoglia... per scegliere un file .exe (nel campo viene inserito solo il nome file) oppure Programmi aperti per selezionare un processo che ha una finestra visibile.
+3) Facoltativamente inserisci una parola o frase del titolo finestra: basta che il titolo la contenga.
+4) Seleziona monitor e modalità (massimizzata, schermo intero, centrata, dimensione personalizzata oppure mantieni dimensione).
+5) Per dimensione personalizzata imposta X e Y relativi all'angolo in alto a sinistra del monitor selezionato, oltre a larghezza e altezza.
+6) Lascia selezionata Regola abilitata e premi Salva.
+7) Alla successiva comparsa di una finestra visibile che corrisponde, la regola viene applicata una sola volta. Dopo puoi spostarla manualmente. Una finestra già gestita non viene riposizionata ogni secondo.
+
+4. TRAY E AVVIO CON WINDOWS
+- Chiudendo la finestra con la X, MonitorPilot si nasconde nell'area di notifica vicino all'orologio e continua a funzionare.
+- Usa il doppio clic sull'icona oppure il menu contestuale dell'icona per riaprire MonitorPilot.
+- Per chiudere davvero scegli Esci dal menu dell'icona nella tray.
+- In Impostazioni seleziona Avvia MonitorPilot all'accesso a Windows e premi Salva impostazioni. Il programma crea una voce per l'utente corrente nel Registro (HKCU Run), avviandolo minimizzato.
+- Per avviarlo manualmente nascosto, esegui avvia_monitorpilot.bat --minimized.
+
+5. SCHEDE PRINCIPALI
+- Monitor: elenco, identificazione temporanea con numero, monitor primario, modalità video e comandi di alimentazione. Il nome è ricavato prima dall'alias personale, poi dal nome modello nell'EDID e infine dal nome fornito da Windows. Rinomina o fai doppio clic su una riga per impostare un alias; Ripristina nome originale lo rimuove. Gli alias sono memorizzati in config.json usando l'identificativo hardware del monitor, non la posizione in elenco.
+- Finestre: aggiorna l'elenco (mostrando anche il nome del monitor), sposta una finestra o tutte quelle su un monitor; sono disponibili massimizza, minimizza, ripristina, chiudi e sempre in primo piano. Puoi creare una regola dalla finestra selezionata.
+- Profili: salva e ripristina le posizioni e le dimensioni delle finestre aperte, oltre al loro stato massimizzato; rinomina o elimina profili.
+- Impostazioni: abilita il motore regole globale e regola l'intervallo di controllo.
+
+ATTENZIONI E LIMITI
+- Una modifica di risoluzione, frequenza o monitor primario può causare uno schermo temporaneamente nero o spostare finestre. Se Windows chiede conferma della modalità, confermala solo se l'immagine è visibile e corretta.
+- La disattivazione logica di un monitor tramite API Windows dipende dal driver e dalla configurazione; se il driver rifiuta l'operazione, aggiorna i driver o gestisci la topologia da Impostazioni schermo di Windows.
+- I profili ripristinano finestre abbinate prima per processo e titolo, poi per processo. Non avviano le applicazioni mancanti. Le modalità video salvate sono informative: il ripristino automatico della topologia/risoluzione dei monitor non è garantito perché Windows e i driver possono rifiutarlo.
+- Finestre senza titolo, invisibili, finestre tool, finestre cloaked e la finestra di MonitorPilot sono escluse. Operazioni sulle applicazioni elevate o protette possono essere negate.
+- Lo spegnimento display invia un comando Windows globale; può interessare più monitor o essere ignorato da alcuni dispositivi. Muovi il mouse o premi un tasto per riattivare lo schermo.
+
+RISOLUZIONE DEI PROBLEMI
+- Download o installazione di Python 3.12.0 non riusciti: controlla la connessione e riprova. Il launcher richiede Python 3.12 (64 bit); se preferisci, installalo dal sito python.org e poi rilancia il .bat.
+- Errore di aggiornamento pip o installazione librerie: verifica la connessione e rilancia il .bat. Vengono installate soltanto le dipendenze mancanti.
+- La finestra non appare: controlla le icone nascoste vicino all'orologio; potrebbe essere già in esecuzione. Seleziona Esci dal menu dell'icona per terminarla.
+- Una regola non agisce: controlla eseguibile scritto correttamente, filtro titolo, monitor, casella abilitata e motore globale in Impostazioni. Riapri la finestra per testarla: ogni HWND è gestito una sola volta.
+- Un comando di monitor o finestra non funziona: alcuni driver e applicazioni non accettano modifiche esterne. Prova un'app non elevata e gestisci le impostazioni video da Windows.
+- Per azzerare configurazione/regole e alias: chiudi MonitorPilot, poi rinomina o elimina %APPDATA%\MonitorPilot\config.json. Il file contiene le tue regole, profili e alias dei monitor.
+
+Il progetto usa API native di Windows e non è pensato per Linux o macOS.
+
+AGGIORNAMENTO — ICONA E LINGUA (IT/EN)
+- L'icona di MonitorPilot viene assegnata a Windows, alla finestra e all'area di notifica. Un file `monitorpilot.ico` presente accanto allo script ha la precedenza; se manca viene generato automaticamente quando PIL è disponibile, con alternativa disegnata tramite Qt.
+- In Impostazioni è disponibile il selettore Italiano/English. La lingua si applica subito ricostruendo l'interfaccia, viene salvata nel `config.json` alla chiave `language` e al primo avvio viene scelta in base alla lingua di Windows.
+- Per usare l'icona personalizzata, copia `monitorpilot.ico` nella stessa cartella di `monitorpilot.py`.
+
+UPDATE — ICON AND LANGUAGE (IT/EN)
+- MonitorPilot's icon is assigned to Windows, the application window, and the notification area. An existing `monitorpilot.ico` alongside the script takes precedence; if absent, an icon is generated automatically when PIL is available, with a Qt-drawn fallback.
+- The Settings tab includes an Italiano/English selector. Changes apply immediately by rebuilding the interface, persist in `config.json` under the `language` key, and default to the Windows language on first run.
+- To use a custom icon, place `monitorpilot.ico` in the same folder as `monitorpilot.py`.
